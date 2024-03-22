@@ -1,93 +1,176 @@
-# Lecture K8s 2
+### Set k8s for Yandex Cloud use RKE
 
+* Ubuntu v22.04 (2CPU, 40GB HDD, 6Gb RAM)
+* k8s v1.27.11
 
-
-## Getting started
-
-To make it easy for you to get started with GitLab, here's a list of recommended next steps.
-
-Already a pro? Just edit this README.md and make it your own. Want to make it easy? [Use the template at the bottom](#editing-this-readme)!
-
-## Add your files
-
-- [ ] [Create](https://docs.gitlab.com/ee/user/project/repository/web_editor.html#create-a-file) or [upload](https://docs.gitlab.com/ee/user/project/repository/web_editor.html#upload-a-file) files
-- [ ] [Add files using the command line](https://docs.gitlab.com/ee/gitlab-basics/add-file.html#add-a-file-using-the-command-line) or push an existing Git repository with the following command:
-
+#### Ansible install (terminal_host who ssh connect to VM's cluster)
+MacOS
+```Bash
+brew install ansible
 ```
-cd existing_repo
-git remote add origin https://gitlab.praktikum-services.ru/ifireice/lecture_k8s_2.git
-git branch -M main
-git push -uf origin main
+Ubuntu
+```Bash
+sudo apt-add-repository ppa:ansible/ansible
+sudo apt update
+sudo apt install ansible
 ```
 
-## Integrate with your tools
+### Configure terraform provider on host
+Create ~/.terraformrc
+```
+provider_installation { 
+  network_mirror {
+    url = "https://terraform-mirror.yandexcloud.net/"
+    include = ["registry.terraform.io/*/*"]
+  }
+  direct {
+    exclude = ["registry.terraform.io/*/*"]
+  }
+} 
+```
 
-- [ ] [Set up project integrations](https://gitlab.praktikum-services.ru/ifireice/lecture_k8s_2/-/settings/integrations)
 
-## Collaborate with your team
+Получить oauth токен 
+https://cloud.yandex.ru/ru/docs/cli/operations/authentication/user -
+```Bash
+yc config set token <token>
+yc iam create-token
+export YC_TOKEN=<token>
+```
 
-- [ ] [Invite team members and collaborators](https://docs.gitlab.com/ee/user/project/members/)
-- [ ] [Create a new merge request](https://docs.gitlab.com/ee/user/project/merge_requests/creating_merge_requests.html)
-- [ ] [Automatically close issues from merge requests](https://docs.gitlab.com/ee/user/project/issues/managing_issues.html#closing-issues-automatically)
-- [ ] [Enable merge request approvals](https://docs.gitlab.com/ee/user/project/merge_requests/approvals/)
-- [ ] [Set auto-merge](https://docs.gitlab.com/ee/user/project/merge_requests/merge_when_pipeline_succeeds.html)
+Получить варианты images
+```Bash
+yc compute image list --folder-id standard-images|grep ubuntu-22 
+```
+Получить  subnet_id
+```Bash
+ yc vpc subnets list  --cloud-id=<cloud-id> --folder-id=<folder-id>
+```
 
-## Test and Deploy
+#### Initialisation VM's and Configuration (dynamic inventory Ansible)
+```Bash
+cd terraform
+terraform init
+terraform apply
+export ANSIBLE_HOST_KEY_CHECKING=False
+ansible-playbook -i ../ansible/host.ini ../ansible/playbook.yml
 
-Use the built-in continuous integration in GitLab.
+```
 
-- [ ] [Get started with GitLab CI/CD](https://docs.gitlab.com/ee/ci/quick_start/index.html)
-- [ ] [Analyze your code for known vulnerabilities with Static Application Security Testing (SAST)](https://docs.gitlab.com/ee/user/application_security/sast/)
-- [ ] [Deploy to Kubernetes, Amazon EC2, or Amazon ECS using Auto Deploy](https://docs.gitlab.com/ee/topics/autodevops/requirements.html)
-- [ ] [Use pull-based deployments for improved Kubernetes management](https://docs.gitlab.com/ee/user/clusters/agent/)
-- [ ] [Set up protected environments](https://docs.gitlab.com/ee/ci/environments/protected_environments.html)
+### Install RKE (terminal_host who ssh connect to VM's cluster)
+MacOS
+```Bash
 
-***
+brew install rke
+```
 
-# Editing this README
+Ubuntu
+```Bash
+curl -s https://api.github.com/repos/rancher/rke/releases/latest | grep download_url | grep amd64 | cut -d '"' -f 4 | wget -qi -
+chmod +x rke_linux-amd64
+sudo mv rke_linux-amd64 /usr/local/bin/rke
+rke --version
+rke config --list-version --all
+```
 
-When you're ready to make this README your own, just edit this file and use the handy template below (or feel free to structure it however you want - this is just a starting point!). Thanks to [makeareadme.com](https://www.makeareadme.com/) for this template.
+### Deploy k8s
+```Bash
+cd ../rke_config
+vm cluster.yml # Replace IP for nodes
+# Remove old config cluster
+rke up --ignore-docker-version
 
-## Suggestions for a good README
+kubectl --kubeconfig kube_config_cluster.yml get nodes  -o wide  
+NAME    STATUS   ROLES                      AGE     VERSION    INTERNAL-IP   EXTERNAL-IP   OS-IMAGE             KERNEL-VERSION      CONTAINER-RUNTIME
+node1   Ready    controlplane,etcd,worker   7m2s    v1.27.11   10.128.0.22   <none>        Ubuntu 20.04.3 LTS   5.11.0-43-generic   docker://26.0.0
+node2   Ready    worker                     6m55s   v1.27.11   10.128.0.16   <none>        Ubuntu 20.04.3 LTS   5.11.0-43-generic   docker://26.0.0
+node3   Ready    worker                     6m55s   v1.27.11   10.128.0.8    <none>        Ubuntu 20.04.3 LTS   5.11.0-43-generic   docker://26.0.0
 
-Every project is different, so consider which of these sections apply to yours. The sections used in the template are suggestions for most open source projects. Also keep in mind that while a README can be too long and detailed, too long is better than too short. If you think your README is too long, consider utilizing another form of documentation rather than cutting out information.
 
-## Name
-Choose a self-explaining name for your project.
+scp kube_config_cluster.yml <username>@<vm_ip>:~/ & ssh <username>@<vm_ip>
+```
 
-## Description
-Let people know what your project can do specifically. Provide context and add a link to any reference visitors might be unfamiliar with. A list of Features or a Background subsection can also be added here. If there are alternatives to your project, this is a good place to list differentiating factors.
+### Install Kubectl (master node)
+```Bash
+curl -LO "https://dl.k8s.io/release/$(curl -L -s https://dl.k8s.io/release/stable.txt)/bin/linux/amd64/kubectl"
+chmod +x kubectl
+sudo mv kubectl /usr/local/bin/kubectl
+```
 
-## Badges
-On some READMEs, you may see small images that convey metadata, such as whether or not all the tests are passing for the project. You can use Shields to add some to your README. Many services also have instructions for adding a badge.
+### Set kubeconfig
+```Bash
+mkdir ~/.kube/
+cat kube_config_cluster.yml >~/.kube/k8s-hls & export KUBECONFIG=$(find ~/.kube -maxdepth 1 -type f -name '*' | tr "\n" ":")
+```
 
-## Visuals
-Depending on what you are making, it can be a good idea to include screenshots or even a video (you'll frequently see GIFs rather than actual videos). Tools like ttygif can help, but check out Asciinema for a more sophisticated method.
 
-## Installation
-Within a particular ecosystem, there may be a common way of installing things, such as using Yarn, NuGet, or Homebrew. However, consider the possibility that whoever is reading your README is a novice and would like more guidance. Listing specific steps helps remove ambiguity and gets people to using your project as quickly as possible. If it only runs in a specific context like a particular programming language version or operating system or has dependencies that have to be installed manually, also add a Requirements subsection.
+### Test app
+```bash
+cd ../k8s
+export KUBECONFIG=<path_to_project>/rke_config/kube_config_cluster.yml
+kubectl apply -f deployment.yaml  
+kubectl get pods  -l app=my-test -o wide                                          
+NAME                       READY   STATUS    RESTARTS   AGE   IP          NODE    NOMINATED NODE   READINESS GATES
+my-test-57fcc94cbb-g5m2d   1/1     Running   0          98s   10.42.2.7   node2   <none>           <none>
+my-test-57fcc94cbb-zn4l2   1/1     Running   0          98s   10.42.0.6   node1   <none>           <none>
+                                          
+kubectl get pods  -l app=my-test  -o custom-columns=POD_IP:.status.podIPs    
+POD_IP
+[map[ip:10.42.2.7]]
+[map[ip:10.42.0.6]]
+```
 
-## Usage
-Use examples liberally, and show the expected output if you can. It's helpful to have inline the smallest example of usage that you can demonstrate, while providing links to more sophisticated examples if they are too long to reasonably include in the README.
+Создадим сервис
+```Bash
+kubectl apply -f service.yaml            
+kubectl get svc my-test                                                                         
+NAME      TYPE        CLUSTER-IP     EXTERNAL-IP   PORT(S)    AGE
+my-test   ClusterIP   10.43.255.99   <none>        8080/TCP   13s
 
-## Support
-Tell people where they can go to for help. It can be any combination of an issue tracker, a chat room, an email address, etc.
 
-## Roadmap
-If you have ideas for releases in the future, it is a good idea to list them in the README.
+kubectl describe svc my-test                                                                   
+Name:              my-test
+Namespace:         default
+Labels:            app=my-test
+Annotations:       <none>
+Selector:          app=my-test
+Type:              ClusterIP
+IP Family Policy:  SingleStack
+IP Families:       IPv4
+IP:                10.43.255.99
+IPs:               10.43.255.99
+Port:              <unset>  8080/TCP
+TargetPort:        8080/TCP
+Endpoints:         10.42.0.6:8080,10.42.2.7:8080
+Session Affinity:  None
+Events:            <none>
 
-## Contributing
-State if you are open to contributions and what your requirements are for accepting them.
+kubectl get endpointslices -l kubernetes.io/service-name=my-test                        
+NAME            ADDRESSTYPE   PORTS   ENDPOINTS             AGE
+my-test-b9zh4   IPv4          8080    10.42.2.7,10.42.0.6   71s
+```
 
-For people who want to make changes to your project, it's helpful to have some documentation on how to get started. Perhaps there is a script that they should run or some environment variables that they need to set. Make these steps explicit. These instructions could also be useful to your future self.
+Пробросим порты
+```Bash
+kubectl port-forward deployment.apps/my-test 8080:8080
+или
+kubectl port-forward svc/my-test  8080:8080
+```
 
-You can also document commands to lint the code or run tests. These steps help to ensure high code quality and reduce the likelihood that the changes inadvertently break something. Having instructions for running tests is especially helpful if it requires external setup, such as starting a Selenium server for testing in a browser.
+Добавим ингресс
+```Bash
+kubectl apply -f ingress.yaml  
+kubectl get ingress 
+sudo vi /etc/hosts #add ingress ip -> dns name   
+# 158.160.50.119 hi.my.test.ru  
+curl  hi.my.test.ru                                                                                    
+```
 
-## Authors and acknowledgment
-Show your appreciation to those who have contributed to the project.
-
-## License
-For open source projects, say how it is licensed.
-
-## Project status
-If you have run out of energy or time for your project, put a note at the top of the README saying that development has slowed down or stopped completely. Someone may choose to fork your project or volunteer to step in as a maintainer or owner, allowing your project to keep going. You can also make an explicit request for maintainers.
+### Clear
+```Bash
+#exit from cluster node
+pwd rke_config
+rke remove --ignore-docker-version
+cd ../terraform  
+terraform destroy
+```

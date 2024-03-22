@@ -1,0 +1,10 @@
+#cloud-config
+users:
+ - default
+ - name: ifireice
+   groups: sudo
+   password: test
+   shell: /bin/bash
+   sudo: ['ALL=(ALL) NOPASSWD:ALL']
+   ssh-authorized-keys:
+        - ssh-rsa AAAAB3NzaC1yc2EAAAADAQABAAABgQDr1hGBF4exoB3xpDNwkoWgfICW9p1mc4OlFwsjYwa8C53Qar6AHrKH/eg5ymEHos6mdEiIOPDJ9wWMCE+xPtZJ+YmN5Qs5M1m3VgCNW1J6DpbR7fPmm8ppF7u1+uT2GsITGY+L9pErbj7OCYBAI6olYUErNKiUW3g7dwO5P+MJZNsdS6q38h8yD8vQCgvyysH+JHzh7K0/f81DW49/avLN/X0GDhbZgbEaEgRzC54ZliJg7FP+bYHEUBO1ovy+W2pLH4LM0vucsj/eDuLrplOpFbCtDxgJmzMMw7w4UAEhPf9+bF9F2g4fF5ec9CB4skRu6QFCHDBLSmhVLcwr0qvM7IqnFl3t6oZ2Z1y6HiT1nSVVgHuhVB4d2m8Dd6dI9+8VdoXLzzYEI6539YjvclqSdcLiqIiKlhXVNQa4XJk088Ok49nBGge/D6JdMvoX9OUDGaXr0kHA3YHCYQbtrXH4i6Y9YhAVJyFV+cOiQtstCoXDiNOPOLZkqt56FN3LL1s= ifireice@ifireice-osx
